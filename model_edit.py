@@ -24,27 +24,49 @@ def _main():
    
     parser = argparse.ArgumentParser()
     parser.add_argument("saved_model", help="Serialized PyTorch model to modify")
-    parser.add_argument("--output-class-name", help="Name of new PyTorch model class to save as e.g. ResnetCBIR", dest = "output_class_name")
+    parser.add_argument("--output-class-name", help="Name of new PyTorch model class to save as e.g. ResnetCBIR", dest = "output_class_name", default = None)
     parser.add_argument("--strip-layers", help="Number of layers to strip", nargs="?", type = int, default = 0) 
     parser.add_argument("--strip-class-table", help="Strip the class table, e.g. convert classifer to feature extractor (in combination with strip_layers)", dest = "strip_class_table", action = "store_true" )
     parser.add_argument("--verbose", "-v", dest = "verbose", action = "store_true" )
 
     global _args
     _args = parser.parse_args()
-    num_layers_to_show  = _args.strip_layers + 1
-    num_layers_to_strip = _args.strip_layers
+
+#    if not strip_class_table and num_layers_to_strip <= 0:
+#        return False
 
     model, _, _ = Model.load( _args.saved_model )
 
-    if _args.strip_class_table:
+    if not model:
+        return False
+
+    if _strip_model( model, _args.strip_class_table, _args.strip_layers ):
+        classname = _args.output_class_name if _args.output_class_name else model.model_name
+        new_filename = _args.saved_model + "." + classname
+        print("Saving to ", new_filename)
+        model.save( new_filename, classname=_args.output_class_name )
+#       model.save_as( new_filename, classname = _args.output_class_name )
+
+    if _args.verbose:
+        num_layers_to_show  = _args.strip_layers + 1
+        _print_last_n_layers( model, num_layers_to_show )
+
+
+def _strip_model( model, strip_class_table = False, num_layers_to_strip = 0 ):
+    modified = False
+
+    if strip_class_table:
         print("Stripped class table")
         model._class_table = None
         model._num_classes = None
+        modified = True
 
-    if _args.verbose:
-        _print_last_n_layers( model, num_layers_to_show)
-        
-    if _args.strip_layers > 0:
+    if num_layers_to_strip > 0:
+        num_layers_to_show = num_layers_to_strip + 1
+
+        if _args.verbose:
+            _print_last_n_layers( model, num_layers_to_show)
+ 
         print("Removed %d layers" % num_layers_to_strip)
         removed = list(model._model.children())[ : -num_layers_to_strip ]
         # PROBLEM: this doesn't keep ANY of the layer names from the model,
@@ -63,14 +85,9 @@ def _main():
     #        del new_state_dict[ key2 ]
     #        new_state_dict[ key ] = old_state_dict[ key ]
     #    model._model.load_state_dict( new_state_dict )
+        modified = True
 
-    if _args.verbose:
-        _print_last_n_layers( model, num_layers_to_show )
-
-    new_filename = _args.saved_model + "." + _args.output_class_name
-    print("Saving to ", new_filename)
-    model.save( new_filename, classname=_args.output_class_name )
-#    model.save_as( new_filename, classname = _args.output_class_name )
+    return modified
 
 
 def _print_last_n_layers( model, n ):

@@ -10,6 +10,7 @@ import time
 
 import torch
 import torch.backends.cudnn as cudnn
+import torch.nn as nn
 
 from copper.model import Model
 from copper import utils
@@ -73,11 +74,12 @@ def _main():
     # Load the model; ignore optimizer state and command-line used to train the model (we are not fine-tuning the model)
     global _model
     _model, _, _ = Model.load( _args.model )
+    _model._model.eval()
 
-    # If the model is a classifier, go ahead and remove the final layer as a convenience to the user.
-    # model.classifier = nn.Sequential(*list(model.classifier.children())[:-3])
-
-    print(_model._model)
+    # HACK HACK:
+    # Currently using a pretrained model, where the embedding layer has not been trained / fine-tuned. Remove it. SO GROSS.
+##    _model._model = nn.Sequential(*list(_model._model.children())[:-1])
+    #print(_model._model)
 
     layers = list(_model._model.children())
     print("Last layers of model:")
@@ -156,7 +158,7 @@ def featurize():
         vector = _get_feature_vector( model, image_bytes )
         stop = time.time()
         msecs = (stop - start) * 1000
-        print("%d ms: %s bytes" % (msecs, request.headers["Content-Length"]))
+        print("%d ms: %s bytes -> %d" % (msecs, request.headers["Content-Length"], len(vector)))
 
         #if _args.verbose:
         #    print(vector)
