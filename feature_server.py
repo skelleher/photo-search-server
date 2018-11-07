@@ -74,7 +74,10 @@ def _main():
     # Load the model; ignore optimizer state and command-line used to train the model (we are not fine-tuning the model)
     global _model
     _model, _, _ = Model.load( _args.model )
+
+    # Disable batchnorm update and gradient history-keeping
     _model._model.eval()
+    torch.set_grad_enabled( False )
 
     # HACK HACK:
     # Currently using a pretrained model, where the embedding layer has not been trained / fine-tuned. Remove it. SO GROSS.
@@ -95,6 +98,14 @@ def _main():
     if torch.cuda.is_available() and _args.gpu is not None:                               
         _model._model = _model._model.cuda()                                       
     
+    # Sanity check: load three images and compute their feature vectors.
+    # Confirm they are not identical.
+    #
+    # Unfortunately I have a lot of old saved models which, because they were saved incorrectly,
+    # load with only a warning about "wrong number of weights / layers".
+    # These essentially output a constant vector - with some noise - regardless of the input.
+    # Won't notice unless you run stats on the feature vectors.
+
     # Start the web server
     global _app
     _app.run(host = _args.host, port = _args.port)

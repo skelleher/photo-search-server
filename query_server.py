@@ -37,7 +37,7 @@ def _main():
     parser.add_argument("--port", help="port number to listen for queries", nargs="?", default=1980)
     parser.add_argument("--features_host", help="hostname for the feature_server. Defaults to 0.0.0.0", nargs="?", default="0.0.0.0")
     parser.add_argument("--features_port", help="port number for the feature_server.", nargs="?", default=1975)
-    parser.add_argument("--metric", help="similiarty metric [euclidean, cosine] default euclidean", nargs="?", default="euclidean")
+    parser.add_argument("--metric", help="similariity metric [euclidean, cosine] default euclidean", nargs="?", default="euclidean")
     parser.add_argument("--width", help="resize image before extracting features", default=256)
     parser.add_argument("--height", help="resize image before extracting features", default=256)
     parser.add_argument("--verbose", "-v", help="print verbose query information", action="store_true")
@@ -57,6 +57,7 @@ def _main():
         return -1
     
     # Load the image Index
+    # TODO: memory map it; index can be huge
     global _index
     _index = Index(_args)
     _index.load_index(_args.index)

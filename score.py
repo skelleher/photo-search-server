@@ -17,16 +17,12 @@ from PIL import Image
 
 
 def _main():
-    # Disable buffering on stdout
-    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')
-
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="folder or file to query.  Will be queried recursively, with accuracy scored")
     parser.add_argument("--host", help="hostname of query server", nargs="?", default="localhost")
     parser.add_argument("--port", help="port of query server", nargs="?", type=int, default=1975)
     parser.add_argument("--show", help="show query results in a popup window", action="store_true")
     parser.add_argument("--summary", help="don't show individual results; only print per-class summaries", action="store_true")
-    #parser.add_argument("output", help="filename to store results.")
 
     args = parser.parse_args()
     path = args.input
@@ -154,10 +150,11 @@ def query_file(input_path, args):
     for i in range(len(matches)):
         _classname = matches[i]["class"]
         _filename  = matches[i]["filename"]
+        _score     = matches[i]["distance"]
         files.append(_filename)
 
         if not args.summary:
-            print("class = [%s] filename = [%s]" % (_classname, _filename))
+            print("class = [%s] filename = [%s] score = [%f]" % (_classname, _filename, _score))
 
 
         if _classname == classname:

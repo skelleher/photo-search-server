@@ -57,15 +57,10 @@ class Index(object):
         # Load Index, but discard the filenames column
         # Should we use Pandas?  Is it efficient for huge files?
         # can we memory-map large files from Python?
-        # TODO: should Index be a separate class?  Even a separate process?
-    
         # Load only the classname and features
         # At query time, when we want filenames, we can fetch just the ones we want (by index)
         self.index = pd.read_csv(index, usecols = ("classname", "features"))
    
-        # TODO: read the descriptor mdoe from the index header
-
-
         if (self.index.columns.values != ("classname","features")).any():
             print("Index has unexpected columns: %s" % str(self.index.columns.values))
             return -1
@@ -73,11 +68,8 @@ class Index(object):
         # Convert from big string to ndarray of floats
         self.index["features"] = self.index["features"].apply(Index._string_to_float_array)
 
-
-        #
         # Reshape the DataFrame to a [rows x cols] ndarray that knn requires
         # This is SUPER-HACKY, but it was late on a Saturday night and I needed to move forward.
-        #
         self.num_rows = len(self.index)
         self.num_features = len(self.index["features"][0])
 
@@ -88,21 +80,19 @@ class Index(object):
             f = X[i] # f is a list
             new_X[i] = f.reshape(1, -1)
 
-        #X = new_X.reshape(-1, 1)
         X = new_X
-        print("Loaded X: %s" % str(X.shape))
-   
         print("Loaded %d rows, %d features" % (len(self.index), self.num_features))
+
+        # Open the database
+        self._db = open(self.args.index, "rt")
+
 
         print("Loading kNN...")
         if self.args.metric == "cosine":
-            self.knn = NearestNeighbors(n_neighbors=5, algorithm="ball_tree", metric=metrics.pairwise.cosine_distances, n_jobs=-1)
+            self.knn = NearestNeighbors(n_neighbors=5, algorithm="auto", metric=metrics.pairwise.cosine_distances, n_jobs=1)
         else:
-            self.knn = NearestNeighbors(n_neighbors=5, algorithm="ball_tree", metric="euclidean", n_jobs=-1)
+            self.knn = NearestNeighbors(n_neighbors=5, algorithm="auto", metric="euclidean", n_jobs=1)
 
-#        self.knn = NearestNeighbors(n_neighbors=5, algorithm='ball_tree')
-#        self.knn = NearestNeighbors(n_neighbors=5, algorithm="auto", metric=metrics.pairwise.cosine_distances, n_jobs=4)         # also consider Chebyshev
-##        self.knn = NearestNeighbors(n_neighbors=5, algorithm="ball_tree", metric=metrics.pairwise.cosine_distances, n_jobs=-1)
 #        self.knn = NearestNeighbors(n_neighbors=5, algorithm="ball_tree", metric="euclidean", n_jobs=4)         # also consider Chebyshev
         self.knn.fit(X)
         print(self.knn)
@@ -128,30 +118,21 @@ class Index(object):
 
         X = X.reshape(1, -1)
 
-        neighbors = self.knn.kneighbors(X, k, return_distance=False)
-        neighbors = neighbors[0] # It's an array of arrays; we only want the first one since we don't care about neighbor distances
+        neighbors = self.knn.kneighbors(X, k, return_distance=True)
+        distances = neighbors[0].squeeze()
+        matches = neighbors[1].squeeze()
     
-        # results is a list of indices into the database.
+        # returns a list of indices into the database.
         # fetch the filenames and classes and return those
-        db = open(self.args.index, "rt")
+#        db = open(self.args.index, "rt")
 
         results = []
-        for i in range(len(neighbors)):
-            idx = int(neighbors[i])
+        for i in range(len(matches)):
+            idx = int(matches[i])
 
             # TODO: seek to database[idx] and read the entry
             # TODO: generate a lookup table (and index into the index >.<) that tells us where to fseek() to.
-            header_offset = 28
-            row_offset = 165
-            feature_size = 8 # 3 # 2 bytes per byte feature, plus a space
-
-            hack_offset = row_offset + (feature_size * self.num_features)
-            #print("num_features = %d, hack_offset = %d" % (self.num_features, hack_offset))
-
-            file_offset = header_offset + (idx * hack_offset)
-            #print("results[%d] = %d" % (idx, file_offset))
-            db.seek(file_offset)
-            item = db.readline()
+            item = self._get_item_from_database( idx )
 
             #print("match[%d] = %d = %s" % (i, idx, item))
 
@@ -160,8 +141,26 @@ class Index(object):
             filename = filename.strip()
             #print("neighbor[%d]: %s %s" % (idx, classname, filename))
 
-            results.append({"idx": idx, "class" : classname, "filename" : filename})
+            results.append({"idx": idx, "class" : classname, "filename" : filename, "distance" : distances[i]})
 
         return results
+
+
+    def _get_item_from_database( self, idx ):
+        # TODO: seek to database[idx] and read the entry
+        # TODO: generate a lookup table (and index into the index >.<) that tells us where to fseek() to.
+        header_offset = 28
+        features_offset_in_row = 165 # seek past class ID and filename to find the feature vector
+        feature_size = 12 # size of a feature vector elelemnt: float printed as %11.6f, plus a space between each feature
+
+        hack_offset = features_offset_in_row + (feature_size * self.num_features)
+        #print("num_features = %d, hack_offset = %d" % (self.num_features, hack_offset))
+
+        file_offset = header_offset + (idx * hack_offset)
+        #print("results[%d] = %d" % (idx, file_offset))
+        self._db.seek(file_offset)
+        item = self._db.readline()
+
+        return item
 
 

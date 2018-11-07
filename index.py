@@ -13,6 +13,13 @@ import SubProcess
 
 _args = None
 
+_files_to_ignore = [
+    "@eaDir",
+    ".DS_Store",
+    "._.DS_Store",
+]
+
+
 
 def _main():
     parser = argparse.ArgumentParser()
@@ -72,7 +79,7 @@ def index_folder(input_path, index, args):
     print("index_folder: %s" % input_path)
 
     for name in os.listdir(input_path):
-        if name[0] == '.':
+        if _ignore_file( input_path ):
             continue
 
         path = input_path + os.path.sep + name
@@ -88,9 +95,11 @@ def index_folder(input_path, index, args):
 def index_file(input_path, index, args):
     # extract feature vector from file (if an image)
 
-    # TODO: use a path lookup table to avoid duplicating path strings a million times
+    if _ignore_file( input_path ):
+        return
+
+    # TODO: built a path lookup table to avoid duplicating path strings a million times
     elements  = input_path.split(os.sep)
-    #filename  = elements[-1]
     filename = input_path # Save the entire file path, so we can load the original image on query match.
     classname = elements[-2]
 
@@ -113,8 +122,7 @@ def index_file(input_path, index, args):
         index.write("%-128s, " % filename)
 
         for val in X:
-            index.write("%7.3f " % float(val))
-
+            index.write("%11.6f " % float(val))
 
         #f = X.tostring().encode(encoding="U16")
         #index.write(f) # np.fromstring( b16decode(saved), dtype=np.uint8) to reconstitute
@@ -128,6 +136,16 @@ def index_file(input_path, index, args):
         print(ex.args)
         print(ex)
         pass
+
+
+def _ignore_file( name ):
+    for ignore in _files_to_ignore:
+        if ignore in name:
+            return True
+        if name[0] == '.':
+            return True
+
+    return False
 
 
 # Convert feature vector from string to array of floats
