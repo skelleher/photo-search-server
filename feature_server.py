@@ -38,7 +38,8 @@ from copper import utils
 
 _app   = Flask(__name__)
 _args  = None
-_model = None
+_feature_extractor = None
+_classifier = None
 
 
 def _main():
@@ -72,31 +73,35 @@ def _main():
         return -1
 
     # Load the model; ignore optimizer state and command-line used to train the model (we are not fine-tuning the model)
-    global _model
-    _model, _, _ = Model.load( _args.model )
+    global _feature_extractor
+    _feature_extractor, _, _ = Model.load( _args.model )
 
     # Disable batchnorm update and gradient history-keeping
-    _model._model.eval()
+    _feature_extractor._model.eval()
     torch.set_grad_enabled( False )
 
-    # HACK HACK:
-    # Currently using a pretrained model, where the embedding layer has not been trained / fine-tuned. Remove it. SO GROSS.
-##    _model._model = nn.Sequential(*list(_model._model.children())[:-1])
-    #print(_model._model)
+    # Remove the final layer (classifier) but save it so we can generate both a deep feature vector, and a class vector.
+    # Test using both deep feature vector and class vector for image description.
+    # The class vector will obviously match photos of same class.
+    # The feature vector matches photos with visual similarity.
+    # A weighted blend might yield subjectively better search results.
+    # NOTE: we replace the final layer with an identity layer. This is MUCH easier than deleting it, which breaks forward()
+    global _classifier
+    _classifier = _feature_extractor._model.fc
+    _feature_extractor._model.fc = torch.nn.Sequential() 
 
-    layers = list(_model._model.children())
+    print("classifier = ", _classifier)
+    layers = list(_feature_extractor._model.children())
     print("Last layers of model:")
     for layer in layers[-2:]:
         print(" * ", layer)
     print("")
 
-
-    # Load the model parameters: input size, normalization mean/std, embedding output vector length
-
     # Move model to the GPU if available
     # Lame that Model has a _model, which is exposed in a few places. Fix it.
     if torch.cuda.is_available() and _args.gpu is not None:                               
-        _model._model = _model._model.cuda()                                       
+        _feature_extractor._model = _feature_extractor._model.cuda()
+        _classifier = _classifier.cuda()
     
     # Sanity check: load three images and compute their feature vectors.
     # Confirm they are not identical.
@@ -115,30 +120,6 @@ def _main():
 # Get and release handles to the image database
 #
 
-def get_db():
-    # Opens a new database connection if there is none yet for the
-    # current application context.
-
-    global _model 
-
-    top = _app_ctx_stack.top
-    if not hasattr(top, "model"):
-        top.model = _model
-        #print("Got model instance: ", top.model)
-    return top.model
-
-
-@_app.teardown_appcontext
-def release_db(exception):
-    global _model
-
-    # Closes the database again at the end of the request.
-    top = _app_ctx_stack.top
-    #if hasattr(top, "model"):
-        #print("Released model instance")
-
-
-
 @_app.route("/")
 def root():
     return "Ridley image server running."
@@ -146,8 +127,7 @@ def root():
 
 @_app.route("/stats")
 def index_stats():
-    _model = get_db()
-    stats = "Model = %s\nembedding length = %d\n%s" % (_model.name, _model.embedding_length)
+    stats = "Model = %s\nembedding length = %d\n%s" % (_feature_extractor.name, _feature_extractor.embedding_length)
     print(stats)
 
     return stats
@@ -165,8 +145,7 @@ def featurize():
 
         # Perform forward pass to extract the image embedding vector
         start = time.time()
-        model = get_db()
-        vector = _get_feature_vector( model, image_bytes )
+        vector = _get_feature_vector( _feature_extractor, _classifier, image_bytes )
         stop = time.time()
         msecs = (stop - start) * 1000
         print("%d ms: %s bytes -> %d" % (msecs, request.headers["Content-Length"], len(vector)))
@@ -180,7 +159,7 @@ def featurize():
         return "415 Unsupported Media Type"    
 
 
-def _get_feature_vector( model, image_bytes ):
+def _get_feature_vector( feature_extractor, classifier, image_bytes ):
     # Convert image_bytes to an Image for easy resize/crop
     image = Image.open( io.BytesIO(image_bytes) )
 
@@ -215,19 +194,42 @@ def _get_feature_vector( model, image_bytes ):
         batch = batch.cuda()
 
     # perform forward pass
-    batch = model.forward( batch )
-    embedding = batch.squeeze(0)
+    # we generate two vectors: the image features, and the class predictions
+    # both together may yield better image description than either alone
+    features = feature_extractor.forward( batch )
+    raw_output  = classifier.forward( features )
+    
+    labels, probabilities = Model.get_predictions( raw_output )
+
+    raw_output = raw_output.squeeze(0)
+    features = features.squeeze(0)
+
 
     # TODO: do we want to normalize the feature vector for better kNN matching?
     # e.g. apply a StandardScaler to it?
 
     if _args.verbose:
-        print("embedding = ", embedding.shape)
+        print("features = ", features.shape)
+        print(features)
+        print("raw_output = ", raw_output.shape)
+        print(raw_output)
+        print("labels = ", labels)
+        print("probabilities = ", probabilities)
 
     # convert result to an array so we can send it back to client as JSON
-    embedding = embedding.detach().tolist()
+    features = features.detach().tolist()
 
-    return embedding
+    # TEST: append the class label and probability to see how it affects image clustering / search
+    # need to cast because Python JSON can't serialize 64-bit numbers
+    #
+    # PROBLEM: is this an acceptable way to encode a categorical feature for Euclidian distance?
+    # We don't want the class label to totally overwhelm the other features.
+    # Generally speaking, we SHOULD be using one-hot encoding but then our vector is high-dimensional, which
+    # hurts kNN.
+    features.insert( 0, float(labels[0] / len(raw_output)) )
+    features.insert( 1, float(probabilities[0]) ) 
+
+    return features
 
 
 if __name__ == "__main__":
