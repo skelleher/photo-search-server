@@ -64,6 +64,7 @@ def _main():
     if torch.cuda.is_available and _args.gpu is not None:
         torch.cuda.set_device( _args.gpu )
         print( "Using GPU: ", _args.gpu )
+        print( "CUDA: ", torch.cuda.current_device())
     else:
         print( "WARNING: Using CPU" )
 

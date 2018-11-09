@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import argparse
 import pandas as pd
 import numpy as np
@@ -111,6 +112,7 @@ class Index(object):
         if self.args.verbose:
             print("query_image: k=%d" % k)
 
+        start = time.time()
         X = feature_vector
 
         if self.args.verbose:
@@ -143,6 +145,10 @@ class Index(object):
 
             results.append({"idx": idx, "class" : classname, "filename" : filename, "distance" : distances[i]})
 
+        stop = time.time()
+        msecs = (stop - start) * 1000
+        print("query: %d ms" % msecs)
+ 
         return results
 
 
