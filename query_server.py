@@ -6,33 +6,93 @@ import sys
 import argparse
 import requests
 import numpy as np
-from database import Index
+from database import Database
 from PIL import Image
 from stat import *
-from flask import Flask, jsonify, request, _app_ctx_stack
+from flask import Flask, jsonify, request
+from flask_restful import Resource, Api, reqparse
 
 
-# Load a previously-generated index of images
-# The index is large (it contains full paths for each file), 
-# so we want to only keep the features and keys (index into index)
-# in RAM
+# Load a previously-generated Database of images
+# The Database is large (it contains feature vectors as ASCII strings, and full paths for each file), 
+# so we want to only keep the features and keys (index into database) in RAM
 #
 # On query:
 #   get features for image
 #   perform kNN search for similar images
 
 # Flask web server
-_app   = Flask(__name__)
-_index = None
-_args  = None
+_app = None
+_api = None 
+_args = None
+_database = None
+
+#
+# REST resources
+#
+
+_image_list_parser = reqparse.RequestParser()
+_image_list_parser.add_argument("image_url", type = str, help = "filename to use as input to photo search engine")
+
+class ImageSearchResource(Resource):
+    def post(self):
+        args = _image_list_parser.parse_args()
+        print("args = ", args)
+        print("request = ", request)
+        print("headers = ", request.headers)
+
+        if request.headers['Content-Type'] != 'application/octet-stream':
+            return "415 Unsupported Media Type"    
+
+        image_bytes = request.data
+        image = Image.open( io.BytesIO(image_bytes) )
+
+        feature_vector = _get_feature_vector(image)
+        results = _database.query_image(feature_vector)
+
+        return jsonify(results)
+
+
+class ImageListResource(Resource):
+    # TODO: support POST for uploading images
+    # save to temp file
+    # run classifier to get class
+    # if prob < threshold class = unknown
+    # move file to /data/ridley/uploads/<class>
+    # extract features
+    # append to ridley_uploads.index
+    # OPTIONAL: concat databases and restart the query server
+
+    def get(self):
+        return { "num_images" : len(_database) }
+    
+
+class ImageResource(Resource):
+    def get(self, image_id = None):
+        # TODO: do we need to protect database access with a lock or is flask_restful single-threaded?
+        item = _database[ image_id ]
+
+        classname, filename, features = item.split(",")
+        classname = classname.strip()
+        filename = filename.strip()
+        features = features.strip()
+
+        print("/images/%d = %s" % (image_id, filename))
+
+        return { 
+                image_id : 
+                    { 
+                        "class" : classname,
+                        "filename" : filename,
+                        "features" : features
+                    },
+                }
+
 
 
 def _main():
-    # force print() to be unbuffered
-    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')
-   
     parser = argparse.ArgumentParser()
-    parser.add_argument("index", help="previously generated index of images")
+    parser.add_argument("database", help="database of images")
     parser.add_argument("--host", help="hostname to listen for queries. Defaults to 0.0.0.0 (visible externally!)", nargs="?", default="0.0.0.0")
     parser.add_argument("--port", help="port number to listen for queries", nargs="?", default=1980)
     parser.add_argument("--features_host", help="hostname for the feature_server. Defaults to 0.0.0.0", nargs="?", default="0.0.0.0")
@@ -45,97 +105,85 @@ def _main():
     global _args
     _args = parser.parse_args()
     
-    # Check if index exists
-    if not os.path.exists(_args.index):
-        print("Error: index %s not found" % _args.index)
+    # Check if database exists
+    if not os.path.exists(_args.database):
+        print("Error: database %s not found" % _args.database)
         return -1
     
-    # TODO: add signature to index (and verify it)
-    mode = os.stat(_args.index).st_mode
+    # TODO: add signature to database (and verify it)
+    mode = os.stat(_args.database).st_mode
     if S_ISDIR(mode):
-        print("Error: %s is not a valid index file" % _args.index)
+        print("Error: %s is not a valid database file" % _args.database)
         return -1
     
-    # Load the image Index
-    # TODO: memory map it; index can be huge
-    global _index
-    _index = Index(_args)
-    _index.load_index(_args.index)
+    # Load the image Database
+    # TODO: memory map it; database can be huge
+    global _database
+    _database = Database(_args)
+    _database.load_database(_args.database)
     
     # Start the web server
     global _app
+    global _api
+    _app = Flask(__name__)
+    _api = Api(_app)
+
+    _api.add_resource(ImageListResource,
+            "/v1/images",
+            "/v1/images/")
+
+    _api.add_resource(ImageResource,
+            "/v1/images/<int:image_id>")
+
+    _api.add_resource(ImageSearchResource,
+            "/v1/search",
+            "/v1/search/")
+
     _app.run(host = _args.host, port = _args.port)
     
 
+
+#@_app.route("/")
+#def root():
+#    return "Ridley query server running."
+
+
+#@_app.route("/stats")
+#def database_stats():
+#    rows = _database.index.shape[0]
+#    stats = "Database = %s\n%d rows\n%s" % (str(database.index.columns.values), rows, str(database.knn))
+#    print(stats)
 #
-# Get and release handles to the image database
+#    return stats
+
+
+#@_app.route("/query", methods=["POST"])
+#def query():
+#    global _args
 #
-
-def get_db():
-    # Opens a new database connection if there is none yet for the
-    # current application context.
-    global _index
-
-    top = _app_ctx_stack.top
-    if not hasattr(top, "index"):
-        top.index = _index
-    return top.index
-
-
-@_app.teardown_appcontext
-def release_db(exception):
-    global _index
-
-    # Closes the database again at the end of the request.
-    #top = _app_ctx_stack.top
-    #if hasattr(top, "index"):
-        #print("Released Index instance")
-
-
-
-@_app.route("/")
-def root():
-    return "Ridley query server running."
-
-
-@_app.route("/stats")
-def index_stats():
-    index = get_db()
-    rows = index.index.shape[0]
-    stats = "Index = %s\n%d rows\n%s" % (str(index.index.columns.values), rows, str(index.knn))
-    print(stats)
-
-    return stats
-
-
-@_app.route("/query", methods=["POST"])
-def query():
-    global _args
-
-    if _args.verbose:
-        print("headers =\n", request.headers)
-
-
-    if request.headers['Content-Type'] != 'application/octet-stream':
-        return "415 Unsupported Media Type"    
-
-    image_bytes = request.data
-    image = Image.open( io.BytesIO(image_bytes) )
-
-    if _args.verbose:
-        print("Image = %s" % image)
-
-    # perform kNN search using the features
-
-    index = get_db()
-    feature_vector = _get_feature_vector(image)
-    results = index.query_image(feature_vector)
-
-    return jsonify(results)
+#    if _args.verbose:
+#        print("headers =\n", request.headers)
+#
+#
+#    if request.headers['Content-Type'] != 'application/octet-stream':
+#        return "415 Unsupported Media Type"    
+#
+#    image_bytes = request.data
+#    image = Image.open( io.BytesIO(image_bytes) )
+#
+#    if _args.verbose:
+#        print("Image = %s" % image)
+#
+#    # perform kNN search using the features
+#
+#    feature_vector = _get_feature_vector(image)
+#    results = _database.query_image(feature_vector)
+#
+#    return jsonify(results)
 
 
 # Convert feature vector from string to array of floats
-# works with the truncated 7.3 floats we write to the index
+# works with the truncated 7.3 floats we write to the database
 def _string_to_float_array(str):
     str = str.replace(" ", "")
     str = str.replace("\"", "")
@@ -169,7 +217,6 @@ def _get_feature_vector(image):
                        data=data,
                        headers={'Content-Type': 'application/octet-stream'})
   
-   #response = response.json()
    response = response.text
 
    features = _string_to_float_array(response)

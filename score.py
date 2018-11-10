@@ -20,7 +20,7 @@ def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="folder or file to query.  Will be queried recursively, with accuracy scored")
     parser.add_argument("--host", help="hostname of query server", nargs="?", default="localhost")
-    parser.add_argument("--port", help="port of query server", nargs="?", type=int, default=1975)
+    parser.add_argument("--port", help="port of query server", nargs="?", type=int, default=80)
     parser.add_argument("--show", help="show query results in a popup window", action="store_true")
     parser.add_argument("--summary", help="don't show individual results; only print per-class summaries", action="store_true")
 
@@ -110,11 +110,6 @@ def query_file(input_path, args):
     top_5 = 0
 
 
-    #get classname, filename
-    #query results
-    #for result[1..5]:
-    #    if result == class, +1 top-1, top-5
-
     # ASSUMES the parent folder is the classname, e.g. dog\small_dog_1234.jpg
     elements  = input_path.split(os.sep)
     filename  = input_path 
@@ -123,8 +118,8 @@ def query_file(input_path, args):
     if not args.summary:
         print("class = [%s] file = [%s]" % (classname, filename))
 
-    # curl -X POST http://localhost:1975/query -H "Content-type: application/octet-stream" --data-binary @$@
-    url = "http://%s:%d/query" % (args.host, args.port)
+    # Send a REST POST call to perform the query
+    url = "http://%s:%d/v1/search" % (args.host, args.port)
     headers = { "content-type" : "application/octet-stream" }
 
     try:
