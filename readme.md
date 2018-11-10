@@ -3,6 +3,8 @@ Ridley is a small photo search engine.
 Ridley can index photos, and then execute queries against
 the index. By default, the top-5 matching photos are returned.
 
+![Search results](screenshots/ridley_photo_search_engine5.jpeg?raw=true)
+
 Ridley uses a deep neural net to compute photo descriptors. 
 So it's not just looking at properties like color or the position of objects;
 in some sense Ridley understands the semantic content of each photo.
@@ -63,16 +65,16 @@ Install required packages:
 Start Feature Server
 --------------------
 
-python feature_server.py <cnn model for feature extraction>
+> python feature_server.py <cnn model for feature extraction>
 
 e.g.
-  python feature_server.py /data/models/ImageNet/ImageNet.train_1000_resnet50_0.70.model --gpu 0
+  > python feature_server.py models/ImageNet.resnet50_0.70.model --gpu 0
 
 
 Start Query Server
 ------------------
 
-python query_server.py
+> python query_server.py
 
 Assumes the feature_server is running on 0.0.0.0:1975.  Otherwise, specify --features_host and --features_port.
 
@@ -80,17 +82,17 @@ Assumes the feature_server is running on 0.0.0.0:1975.  Otherwise, specify --fea
 Index Images for Search
 -----------------------
 
-python index.py <path to folder> <index name>
+> python index.py <path to folder> <index name>
 
 e.g.
-  python index.py /Volumes/share/data/caltech256/train/ caltech256.index
+  > python index.py /data/caltech256/train/ caltech256.index
 
 
 Search for Similar Images
 -------------------------
 
-curl -X POST http://<query host>:<query port>/query -H "Content-type: application/octet-stream" --data-binary @<filenmame>
+> curl -X POST http://<query host>:<query port>/v1/search -H "Content-type: application/octet-stream" --data-binary @<filenmame>
 
 e.g.
-  curl -X POST http://localhost:32816/query -H "Content-type: application/octet-stream" --data-binary @puppy_dog.jpg
+  > curl -X POST http://localhost:1980/v1/search -H "Content-type: application/octet-stream" --data-binary @puppy_dog.jpg
 
