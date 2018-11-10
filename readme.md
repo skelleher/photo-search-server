@@ -91,7 +91,7 @@ e.g.
 Search for Similar Images
 -------------------------
 
-> curl -X POST http://<query host>:<query port>/v1/search -H "Content-type: application/octet-stream" --data-binary @<filenmame>
+> curl -X POST http://hostname:port/v1/search -H "Content-type: application/octet-stream" --data-binary @<filenmame>
 
 e.g.
   > curl -X POST http://localhost:1980/v1/search -H "Content-type: application/octet-stream" --data-binary @puppy_dog.jpg
