@@ -12,8 +12,8 @@ idna==2.7
 imageio==2.4.1
 kiwisolver==1.0.1
 matplotlib==3.0.0
-mkl-fft==1.0.6
-mkl-random==1.0.1
+#mkl-fft==1.0.6
+#mkl-random==1.0.1
 networkx==2.2
 numpy==1.15.3
 olefile==0.46

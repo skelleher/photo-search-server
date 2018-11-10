@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from flask import Flask, jsonify, request, _app_ctx_stack
+from flask_restful import Resource, Api, reqparse
 from PIL import Image
 import argparse
 import io
@@ -32,22 +33,34 @@ from copper import utils
 #
 
 
-#
 # Flask web server
-#
-
-_app   = Flask(__name__)
-_args  = None
+_app = None
+_api = None
+_args= None
 _feature_extractor = None
 _classifier = None
 
+# REST resources
+
+class ImageFeaturesResource(Resource):
+    def post(self):
+        if request.headers["Content-Type"] != "application/octet-stream":
+            return "Unsupported Media Type", 415
+
+        image_bytes = request.data
+
+        # Perform forward pass to extract the image embedding vector
+        start = time.time()
+        vector = _get_feature_vector( _feature_extractor, _classifier, image_bytes )
+        stop = time.time()
+        msecs = (stop - start) * 1000
+        print("%d ms: %s bytes -> %d" % (msecs, request.headers["Content-Length"], len(vector)))
+    
+        return jsonify(vector)
+    
+
 
 def _main():
-    # force print() to be unbuffered
-    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')
-   
-    # TODO: recover the feature descriptor mode and vector length from the model, not a command line
-
     parser = argparse.ArgumentParser()
     parser.add_argument("model", help="CNN model to use for image embedding")
     parser.add_argument("--host", help="hostname to listen for queries. Defaults to 0.0.0.0 (visible externally!)", nargs="?", default="0.0.0.0")
@@ -104,60 +117,18 @@ def _main():
         _feature_extractor._model = _feature_extractor._model.cuda()
         _classifier = _classifier.cuda()
     
-    # Sanity check: load three images and compute their feature vectors.
-    # Confirm they are not identical.
-    #
-    # Unfortunately I have a lot of old saved models which, because they were saved incorrectly,
-    # load with only a warning about "wrong number of weights / layers".
-    # These essentially output a constant vector - with some noise - regardless of the input.
-    # Won't notice unless you run stats on the feature vectors.
-
     # Start the web server
     global _app
+    global _api
+
+    _app = Flask(__name__)
+    _api = Api(_app)
+
+    _api.add_resource(ImageFeaturesResource,
+            "/v1/image_features",
+            "/v1/image_features")
+
     _app.run(host = _args.host, port = _args.port)
-    
-
-#
-# Get and release handles to the image database
-#
-
-@_app.route("/")
-def root():
-    return "Ridley image server running."
-
-
-@_app.route("/stats")
-def index_stats():
-    stats = "Model = %s\nembedding length = %d\n%s" % (_feature_extractor.name, _feature_extractor.embedding_length)
-    print(stats)
-
-    return stats
-
-
-@_app.route("/featurize", methods=["POST"])
-def featurize():
-    global _args
-
-    if _args.verbose:
-        print("headers =\n", request.headers)
-
-    if request.headers["Content-Type"] == "application/octet-stream":
-        image_bytes = request.data
-
-        # Perform forward pass to extract the image embedding vector
-        start = time.time()
-        vector = _get_feature_vector( _feature_extractor, _classifier, image_bytes )
-        stop = time.time()
-        msecs = (stop - start) * 1000
-        print("%d ms: %s bytes -> %d" % (msecs, request.headers["Content-Length"], len(vector)))
-
-        #if _args.verbose:
-        #    print(vector)
-
-        return jsonify(vector)
-
-    else:
-        return "415 Unsupported Media Type"    
 
 
 def _get_feature_vector( feature_extractor, classifier, image_bytes ):

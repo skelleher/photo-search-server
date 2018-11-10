@@ -36,11 +36,7 @@ _image_list_parser.add_argument("image_url", type = str, help = "filename to use
 
 class ImageSearchResource(Resource):
     def post(self):
-        args = _image_list_parser.parse_args()
-        print("args = ", args)
-        print("request = ", request)
-        print("headers = ", request.headers)
-
+        #args = _image_list_parser.parse_args()
         if request.headers['Content-Type'] != 'application/octet-stream':
             return "415 Unsupported Media Type"    
 
@@ -143,45 +139,6 @@ def _main():
     
 
 
-#@_app.route("/")
-#def root():
-#    return "Ridley query server running."
-
-
-#@_app.route("/stats")
-#def database_stats():
-#    rows = _database.index.shape[0]
-#    stats = "Database = %s\n%d rows\n%s" % (str(database.index.columns.values), rows, str(database.knn))
-#    print(stats)
-#
-#    return stats
-
-
-#@_app.route("/query", methods=["POST"])
-#def query():
-#    global _args
-#
-#    if _args.verbose:
-#        print("headers =\n", request.headers)
-#
-#
-#    if request.headers['Content-Type'] != 'application/octet-stream':
-#        return "415 Unsupported Media Type"    
-#
-#    image_bytes = request.data
-#    image = Image.open( io.BytesIO(image_bytes) )
-#
-#    if _args.verbose:
-#        print("Image = %s" % image)
-#
-#    # perform kNN search using the features
-#
-#    feature_vector = _get_feature_vector(image)
-#    results = _database.query_image(feature_vector)
-#
-#    return jsonify(results)
-
-
 # Convert feature vector from string to array of floats
 # works with the truncated 7.3 floats we write to the database
 def _string_to_float_array(str):
@@ -213,7 +170,7 @@ def _get_feature_vector(image):
    img.save(byte_array, format='PNG')
    data = byte_array.getvalue()
 
-   response = requests.post(url="http://" + _args.features_host + ":" + str(_args.features_port) + "/featurize",
+   response = requests.post(url="http://" + _args.features_host + ":" + str(_args.features_port) + "/v1/image_features",
                        data=data,
                        headers={'Content-Type': 'application/octet-stream'})
   

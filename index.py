@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import io
 import sys
@@ -8,8 +10,6 @@ from collections import namedtuple
 from PIL import Image
 from stat import *
 from base64 import *
-import SubProcess
-
 
 _args = None
 
@@ -25,7 +25,7 @@ def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="folder to index.  Will be indexed recursively, computing features for every .PNG or .JPEG")
     parser.add_argument("output", help="filename to store index.")
-    parser.add_argument("--server", help="hostname for the image feature extraction server", default="localhost")
+    parser.add_argument("--host", help="hostname for the image feature extraction server", type = str, default="localhost")
     parser.add_argument("--port", help="port for the image feature extraction server", default=1975)
     parser.add_argument("--width", help="resize image to <width>", nargs="?", type=int, default=256)
     parser.add_argument("--height", help="resize image to <height>", nargs="?", type=int, default=256)
@@ -98,7 +98,7 @@ def index_file(input_path, index, args):
     if _ignore_file( input_path ):
         return
 
-    # TODO: built a path lookup table to avoid duplicating path strings a million times
+    # TODO: build a path lookup table to avoid duplicating path strings a million times
     elements  = input_path.split(os.sep)
     filename = input_path # Save the entire file path, so we can load the original image on query match.
     classname = elements[-2]
@@ -109,26 +109,20 @@ def index_file(input_path, index, args):
         X = _get_feature_vector(image)
    
         if args.verbose:
-            #print("[%16s] %32s - %s" % (classname, filename, str(X)))
             print("[%16s] %32s" % (classname, filename))
 
         sys.stdout.write(".")
         sys.stdout.flush()
     
         # append a row to the index
-        # use bytearray.fromhex() to read feature vector back into a byte array
-        # TODO: write features in binary: huge savings
+        # TODO: write features in binary instead of a .csv file: huge savings
         index.write("%-32s, " % classname)
         index.write("%-128s, " % filename)
 
         for val in X:
             index.write("%11.6f " % float(val))
 
-        #f = X.tostring().encode(encoding="U16")
-        #index.write(f) # np.fromstring( b16decode(saved), dtype=np.uint8) to reconstitute
         index.write("\n")
-
-        #print("%s" % f)
 
     except Exception as ex:
         print("Error loading image %s" % input_path)
@@ -174,16 +168,14 @@ def _get_feature_vector(image):
     size = (_args.width, _args.height)
     img = image.resize(size)
 
-    #data = open('./x.png', 'rb').read()
     byte_array = io.BytesIO()
     img.save(byte_array, format='PNG')
     data = byte_array.getvalue()
 
-    response = requests.post(url="http://" + _args.server + ":" + _args.port + "/featurize",
+    response = requests.post(url="http://" + _args.host + ":" + str(_args.port) + "/v1/image_features",
                             data=data,
                             headers={'Content-Type': 'application/octet-stream'})
-  
-    #response = response.json()
+ 
     response = response.text
 
     features = _string_to_float_array(response)

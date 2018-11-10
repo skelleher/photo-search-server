@@ -1,45 +1,55 @@
 Ridley is a small photo search engine.
 
-Ridley can index photos (tens of thousands), and then execute queries against
+Ridley can index photos, and then execute queries against
 the index. By default, the top-5 matching photos are returned.
 
-Ridley uses a neural net to match photos.  
+Ridley uses a deep neural net to compute photo descriptors. 
 So it's not just looking at properties like color or the position of objects;
 in some sense Ridley understands the semantic content of each photo.
+
+Ridley uses a simple kNN for finding matching images; this is quite slow for 
+large number of images.  For example, searching a database of 1.2 million 
+ImageNet images takes ~1.2 seconds on an Intel Core-i5 @ 3.3 Ghz.
 
 
 In more detail:
 
 Photos are passed through a resnet50 (trained on 1.2 million ImageNet photos).
-The neural net peforms "feature extraction" to generate a vector of numbers - 
-the photo's visual fingerprint. Similar images should have similar feature 
+The neural net performs feature extraction to generate a vector of numbers - 
+the image's visual fingerprint. Similar images should have similar feature 
 vectors, and they should cluster together in feature space.
 
-We use kNN to perform the actual search.  It returns the closest matches based 
-on similarityy - specifically, cosine similarity of their feature vectors.
+We use kNN to perform the actual search.  It returns the top matches based on
+similarity - specifically, Euclidian distance between their feature vectors.
+(scikit-learn kNN does not support cosine distance as a similarity metric)
 
 The convolutional neural net runs faster on a GPU, but can also run on a CPU.
 Time to index a photo (GPU): 10 - 15 ms
 Time to index a photo (CPU): 100 - 200 ms
 
-The time to query a photo includes feature extraction 
+The time to query a photo includes feature extraction, and depends on the
+database size.
 
 TODO: a neural net trained to classify images works OK, if you chop off the 
 final layer (the classifier).  This leaves the penultimate layer, which 
 outputs a feature vector - the image fingerprint, or projection into feature 
 space.  
 
-However matching will perform better if a final "embedding" layer is added to 
+However matching should perform better if a final "embedding" layer is added to 
 the net, and then fine-tuned.  For example, you could fine-tune the embedding 
 layer using positive and negative image pairs, with a triplet loss function.
 Or, you could fine-tune the embedding layer on image captions (text) such as 
 the MS-COCO dataset.
 
-TODO: we use the kNN implementation from Scikit-learn.  It performs exhaustive 
+TODO: we use the kNN implementation from scikit-learn.  It performs exhaustive 
 search of the index, which does not scale well to millions of photos.  
-A better solution might be approximate nearest neighbors, such as spatial 
-hashing or the Annoy library.  In general, kNN matching performs better (in 
-time and accuracy) when the vectors are shorter (1000 elements or fewer).
+A better solution might be approximate nearest neighbors, with locality-
+sensitive hashing.  This could use the Annoy or HNSW libraries.  
+
+TODO: try different feature vector lengths. I've tried 2048 and 512 - both
+work well.  We could use PCA to further shrink the vectors to 256 or 128.
+In general, kNN matching performs better (in time and accuracy) when the 
+vectors are shorter.
 
 
 Install
