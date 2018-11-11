@@ -1,52 +1,76 @@
-Ridley is a small photo search engine.
+Ridley is a small photo search engine that I wrote for fun.
 
 Ridley can index photos, and then execute queries against
 the index. By default, the top-5 matching photos are returned.
 
 ![Search results](screenshots/ridley_photo_search_engine5.jpeg?raw=true)
 
-Ridley uses a deep neural net to compute photo descriptors. 
-So it's not just looking at properties like color or the position of objects;
-in some sense Ridley understands the semantic content of each photo.
+Ridley uses a deep neural net to compute photo descriptors.
 
-Ridley uses a simple kNN for finding matching images; this is quite slow for 
-large number of images.  For example, searching a database of 1.2 million 
-ImageNet images takes ~1.2 seconds on an Intel Core-i5 @ 3.3 Ghz.
+Performance
+-----------
+
+Ridley uses a simple kNN to find matching images; this is quite slow for large 
+numbers of images.
+
+For example, searching a database of 1.2 million ImageNet images takes ~1.2 seconds
+on an Intel Core-i5 @ 3.3 Ghz.
 
 
-In more detail:
+Feature Extraction
+------------------
 
-Photos are passed through a resnet50 (trained on 1.2 million ImageNet photos).
-The neural net performs feature extraction to generate a vector of numbers - 
-the image's visual fingerprint. Similar images should have similar feature 
-vectors, and they should cluster together in feature space.
+Photos are passed through a Resnet50 (trained on ImageNet).
 
-We use kNN to perform the actual search.  It returns the top matches based on
-similarity - specifically, Euclidian distance between their feature vectors.
-(scikit-learn kNN does not support cosine distance as a similarity metric)
+Time to compute image features:
+. GPU - Titan X: 10 - 15 ms
+. CPU - Core i5-4590 3.3 Ghz: 100 - 200 ms
 
-The convolutional neural net runs faster on a GPU, but can also run on a CPU.
-Time to index a photo (GPU): 10 - 15 ms
-Time to index a photo (CPU): 100 - 200 ms
+Unlike some search engines, we use *both the predicted class label and the output 
+of the second-to-last layer* (the "deep features" of the image).
 
-The time to query a photo includes feature extraction, and depends on the
-database size.
+Since this is a Resnet, the deep feature vector includes information copied forward 
+from early layers of the model, such as the specific shape, color, and pose of objects.
+
+If we use only the predicted class labels, photos of airplanes match photos of any 
+other airplane, regardless of shape or pose (the image features have been lost).
+
+If we use only the image features, photos of red round things tend to match other 
+photos of red round things, regardless of subject. At least this is true when using
+Euclidian distance.  I speculate that Resnet features don't cluster well (need to 
+confirm with PCA or t-SNE). So kNN cannot dis-entangle the image subject from the deep 
+features. A fully-connected layer is required for that.
+
+By combining the features and class label, we get search results that a) contain the 
+correct subject and b) are visually similar (size, pose, and color).
+
+
+Search
+------
+
+With an image descriptor in hand, we use kNN to search for similar photos.  
+It returns the top matches based on similarity - specifically, Euclidian distance 
+between their descriptors. (scikit-learn kNN does not support cosine distance, and
+writing a custom pairwise_match function made search 10x slower)
+
+
+Further Work
+------------
 
 TODO: a neural net trained to classify images works OK, if you chop off the 
 final layer (the classifier).  This leaves the penultimate layer, which 
 outputs a feature vector - the image fingerprint, or projection into feature 
-space.  
+space.
 
 However matching should perform better if a final "embedding" layer is added to 
 the net, and then fine-tuned.  For example, you could fine-tune the embedding 
 layer using positive and negative image pairs, with a triplet loss function.
-Or, you could fine-tune the embedding layer on image captions (text) such as 
-the MS-COCO dataset.
+Or, perhaps you could fine-tune the embedding layer on image captions (text).
 
 TODO: we use the kNN implementation from scikit-learn.  It performs exhaustive 
 search of the index, which does not scale well to millions of photos.  
 A better solution might be approximate nearest neighbors, with locality-
-sensitive hashing.  This could use the Annoy or HNSW libraries.  
+sensitive hashing.  This could use the Annoy or HNSW libraries.
 
 TODO: try different feature vector lengths. I've tried 2048 and 512 - both
 work well.  We could use PCA to further shrink the vectors to 256 or 128.
