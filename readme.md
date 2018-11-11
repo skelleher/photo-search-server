@@ -95,14 +95,6 @@ e.g.
   > python feature_server.py models/ImageNet.resnet50_0.70.model --gpu 0
 
 
-Start Query Server
-------------------
-
-> python query_server.py
-
-Assumes the feature_server is running on 0.0.0.0:1975.  Otherwise, specify --features_host and --features_port.
-
-
 Index Images for Search
 -----------------------
 
@@ -110,6 +102,14 @@ Index Images for Search
 
 e.g.
   > python index.py /data/caltech256/train/ caltech256.index
+
+
+Start Query Server
+------------------
+
+> python query_server.py caltech256.index
+
+Assumes the feature_server is running on 0.0.0.0:1975.  Otherwise, specify --features_host and --features_port.
 
 
 Search for Similar Images
