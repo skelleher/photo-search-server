@@ -23,11 +23,11 @@ Feature Extraction
 Photos are passed through a Resnet50 (trained on ImageNet).
 
 Time to compute image features:
-. GPU - Titan X: 10 - 15 ms
-. CPU - Core i5-4590 3.3 Ghz: 100 - 200 ms
+* GPU - Titan X: 10 - 15 ms
+* CPU - Core i5-4590 3.3 Ghz: 100 - 200 ms
 
-Unlike some search engines, we use *both the predicted class label and the output 
-of the second-to-last layer* (the "deep features" of the image).
+Unlike some search engines, we use ***both the predicted class label and the output 
+of the second-to-last layer*** (the "deep features" of the image).
 
 Since this is a Resnet, the deep feature vector includes information copied forward 
 from early layers of the model, such as the specific shape, color, and pose of objects.
