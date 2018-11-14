@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import os
 import io
 import sys
@@ -30,6 +29,7 @@ def _main():
     parser.add_argument("--width", help="resize image to <width>", nargs="?", type=int, default=256)
     parser.add_argument("--height", help="resize image to <height>", nargs="?", type=int, default=256)
     parser.add_argument("--force", help="force overwrite of existing index file", action="store_true")
+    parser.add_argument("--s3", help="prefix every file in index with a string like https://s3-foo/bucket/", type=str)
     parser.add_argument("-v", "--v", help="verbose logging", dest = "verbose", action="store_true")
 
     global _args
@@ -102,6 +102,11 @@ def index_file(input_path, index, args):
     elements  = input_path.split(os.sep)
     filename = input_path # Save the entire file path, so we can load the original image on query match.
     classname = elements[-2]
+
+    if args.s3:
+        filename = args.s3 + os.path.join(os.path.sep, *elements[:])
+    else:
+        filename = input_path
 
     try:
         image = Image.open(input_path)

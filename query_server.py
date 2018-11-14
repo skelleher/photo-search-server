@@ -2,6 +2,8 @@
 
 import os
 import io
+import base64
+import re
 import sys
 import argparse
 import requests
@@ -11,6 +13,7 @@ from PIL import Image
 from stat import *
 from flask import Flask, jsonify, request
 from flask_restful import Resource, Api, reqparse
+from flask_cors import CORS
 
 
 # Load a previously-generated Database of images
@@ -37,14 +40,29 @@ _image_list_parser.add_argument("image_url", type = str, help = "filename to use
 class ImageSearchResource(Resource):
     def post(self):
         #args = _image_list_parser.parse_args()
-        if request.headers['Content-Type'] != 'application/octet-stream':
+        #print("POST = ", request)
+        print("headers =\n", request.headers)
+
+        if "multipart/form-data" in request.headers["Content-Type"]:
+            print("multipart/form-data")
+            image_bytes = request.files["file"].read()
+        elif "application/octet-steam" in request.headers["Content-Type"]:
+            #print("application/octet-stream")
+            image_bytes = request.data
+        else:
             return "415 Unsupported Media Type"    
 
-        image_bytes = request.data
+        print( "got %d bytes" % len(image_bytes))
         image = Image.open( io.BytesIO(image_bytes) )
+        print("query image: ", image)
 
         feature_vector = _get_feature_vector(image)
         results = _database.query_image(feature_vector)
+        #print("result = ", results)
+
+        if _args.s3:
+            for result in results:
+                result["filename"] = _args.s3 + result["filename"]
 
         return jsonify(results)
 
@@ -89,6 +107,7 @@ class ImageResource(Resource):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument("database", help="database of images")
+    parser.add_argument("--s3", help="prefix returned pathnames with a string like https://s3-foo/bucket")
     parser.add_argument("--host", help="hostname to listen for queries. Defaults to 0.0.0.0 (visible externally!)", nargs="?", default="0.0.0.0")
     parser.add_argument("--port", help="port number to listen for queries", nargs="?", default=1980)
     parser.add_argument("--features_host", help="hostname for the feature_server. Defaults to 0.0.0.0", nargs="?", default="0.0.0.0")
@@ -122,6 +141,12 @@ def _main():
     global _app
     global _api
     _app = Flask(__name__)
+
+    # Allow cross-origin requests, so javascript running in the browser
+    # can invoke REST APIs on the backend
+#    CORS(_app, origins = "*", allow_headers = ["Content-Type", "Cache-Control"])
+    CORS(_app, origins = "*")
+
     _api = Api(_app)
 
     _api.add_resource(ImageListResource,

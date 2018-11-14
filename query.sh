@@ -1,2 +1,2 @@
 #!/bin/sh
-curl -X POST http://localhost:32816/query -H "Content-type: application/octet-stream" --data-binary @$@
+curl -X POST http://hiro_wifi:1980/v1/search -H "Content-type: application/octet-stream" --data-binary @$@
