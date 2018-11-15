@@ -40,16 +40,18 @@ _image_list_parser.add_argument("image_url", type = str, help = "filename to use
 class ImageSearchResource(Resource):
     def post(self):
         #args = _image_list_parser.parse_args()
-        #print("POST = ", request)
-        print("headers =\n", request.headers)
+
+        if _args.verbose:
+            print("headers =\n", request.headers)
 
         if "multipart/form-data" in request.headers["Content-Type"]:
-            print("multipart/form-data")
+            #print("multipart/form-data")
             image_bytes = request.files["file"].read()
-        elif "application/octet-steam" in request.headers["Content-Type"]:
+        elif "application/octet-stream" in request.headers["Content-Type"]:
             #print("application/octet-stream")
             image_bytes = request.data
         else:
+            #print("unsupported media type")
             return "415 Unsupported Media Type"    
 
         print( "got %d bytes" % len(image_bytes))
@@ -78,7 +80,10 @@ class ImageListResource(Resource):
     # OPTIONAL: concat databases and restart the query server
 
     def get(self):
-        return { "num_images" : len(_database) }
+        return { 
+                "database_name" : _database.name,
+                "num_images" : len(_database) 
+                }
     
 
 class ImageResource(Resource):
