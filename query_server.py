@@ -54,9 +54,7 @@ class ImageSearchResource(Resource):
             #print("unsupported media type")
             return "415 Unsupported Media Type"    
 
-        print( "got %d bytes" % len(image_bytes))
         image = Image.open( io.BytesIO(image_bytes) )
-        print("query image: ", image)
 
         feature_vector = _get_feature_vector(image)
         results = _database.query_image(feature_vector)
