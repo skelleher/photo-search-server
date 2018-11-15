@@ -130,7 +130,7 @@ class Database(object):
             filename = filename.strip()
             #print("neighbor[%d]: %s %s" % (idx, classname, filename))
 
-            results.append({"idx": idx, "class" : classname, "filename" : filename, "distance" : distances[i]})
+            results.append({"id": idx, "class" : classname, "filename" : filename, "distance" : distances[i]})
 
         stop = time.time()
         msecs = (stop - start) * 1000

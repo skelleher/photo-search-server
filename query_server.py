@@ -37,7 +37,41 @@ _database = None
 _image_list_parser = reqparse.RequestParser()
 _image_list_parser.add_argument("image_url", type = str, help = "filename to use as input to photo search engine")
 
+# Two ways the client can perform a search:
+#   Client can GET /images/<id>/similar
+#   Client can POST an image (binary file)
 class ImageSearchResource(Resource):
+    def get(self, image_id = None):
+        if _args.verbose:
+            print("headers =\n", request.headers)
+
+        # TODO: fetch the image
+        item = _database[ image_id ]
+        classname, filename, features = item.split(",")
+        filename = filename.strip()
+
+        if _args.s3:
+            url = _args.s3 + filename
+        else:
+            url = "file:/" + filename
+
+        print("GET image URL = ", url)
+
+        #image = Image.open( io.BytesIO(image_bytes) )
+        response = requests.get(url)
+        image = Image.open(io.BytesIO(response.content))
+
+        feature_vector = _get_feature_vector(image)
+        results = _database.query_image(feature_vector)
+        #print("result = ", results)
+
+        if _args.s3:
+            for result in results:
+                result["filename"] = _args.s3 + result["filename"]
+
+        return jsonify(results)
+
+
     def post(self):
         #args = _image_list_parser.parse_args()
 
@@ -94,17 +128,17 @@ class ImageResource(Resource):
         filename = filename.strip()
         features = features.strip()
 
+        if _args.s3:
+            filename = _args.s3 + filename
+
         print("/images/%d = %s" % (image_id, filename))
 
         return { 
-                image_id : 
-                    { 
-                        "class" : classname,
-                        "filename" : filename,
-                        "features" : features
-                    },
-                }
-
+                "id" : image_id,
+                "class" : classname,
+                "filename" : filename,
+                #"features" : features
+               }
 
 
 def _main():
@@ -147,7 +181,6 @@ def _main():
 
     # Allow cross-origin requests, so javascript running in the browser
     # can invoke REST APIs on the backend
-#    CORS(_app, origins = "*", allow_headers = ["Content-Type", "Cache-Control"])
     CORS(_app, origins = "*")
 
     _api = Api(_app)
@@ -161,7 +194,8 @@ def _main():
 
     _api.add_resource(ImageSearchResource,
             "/v1/search",
-            "/v1/search/")
+            "/v1/search/",
+            "/v1/images/<int:image_id>/similar")
 
     _app.run(host = _args.host, port = _args.port)
     
