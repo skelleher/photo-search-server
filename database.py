@@ -18,6 +18,7 @@ from sklearn.neighbors import NearestNeighbors
 class Database(object):
     def __init__(self, args):
         self._args = args
+        self._name = "Database"
         #self.rect = Rect(0, 0, args.width, args.height) 
         print("Database: %s" % (str(args)))
 
@@ -43,7 +44,9 @@ class Database(object):
             print(ex.args)
             print(ex)
             pass
-       
+
+        self._name = database_path.split(os.path.sep)[-1]
+
         # Load the features[] column of the database, so we can build a kNN for searching.
         # Also serves as an index to the on-disk database, which contains full paths and metadate for the images.
         #
@@ -204,9 +207,14 @@ class Database(object):
         return ar
 
     # Properties
+    def _get_name(self):
+        return self._name
+
+
     def _get_shape(self):
         return (self._num_items, self._num_features)
 
+    name        = property( _get_name, None )
     shape       = property( _get_shape, None )
 
  
