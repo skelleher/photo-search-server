@@ -34,8 +34,8 @@ _database = None
 # REST resources
 #
 
-_image_list_parser = reqparse.RequestParser()
-_image_list_parser.add_argument("image_url", type = str, help = "filename to use as input to photo search engine")
+_image_search_parser = reqparse.RequestParser()
+_image_search_parser.add_argument("k", type = int, default = 5, help = "number of search results to return")
 
 # Two ways the client can perform a search:
 #   Client can GET /images/<id>/similar
@@ -45,9 +45,11 @@ class ImageSearchResource(Resource):
         if _args.verbose:
             print("headers =\n", request.headers)
 
-        # TODO: fetch the image
+        params = _image_search_parser.parse_args()
+
+        # Get information about the requested search image
         item = _database[ image_id ]
-        classname, filename, features = item.split(",")
+        classname, filename, feature_vector = item.split(",")
         filename = filename.strip()
 
         if _args.s3:
@@ -55,14 +57,16 @@ class ImageSearchResource(Resource):
         else:
             url = "file:/" + filename
 
-        print("GET image URL = ", url)
-
-        #image = Image.open( io.BytesIO(image_bytes) )
+        # Fetch the image and get the feature_vector
+        # Actually this is REALLY STUPID; the feature_vector is in the database!
+        # We just need to store it in a canonical format
         response = requests.get(url)
         image = Image.open(io.BytesIO(response.content))
-
         feature_vector = _get_feature_vector(image)
-        results = _database.query_image(feature_vector)
+
+        #feature_vector = _string_to_float_array( feature_vector )
+
+        results = _database.query_image(feature_vector, params.k)
         #print("result = ", results)
 
         if _args.s3:
@@ -73,7 +77,6 @@ class ImageSearchResource(Resource):
 
 
     def post(self):
-        #args = _image_list_parser.parse_args()
 
         if _args.verbose:
             print("headers =\n", request.headers)
