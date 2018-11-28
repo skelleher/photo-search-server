@@ -7,15 +7,6 @@ the index. By default, the top-5 matching photos are returned.
 
 Ridley uses a deep neural net to compute photo descriptors.
 
-Performance
------------
-
-Ridley uses a simple kNN to find matching images; this is quite slow for large 
-numbers of images.
-
-For example, searching a database of 1.2 million ImageNet images takes ~1.2 seconds
-on an Intel Core-i5 @ 3.3 Ghz.
-
 
 Feature Extraction
 ------------------
@@ -52,6 +43,16 @@ With an image descriptor in hand, we use kNN to search for similar photos.
 It returns the top matches based on similarity - specifically, Euclidian distance 
 between their descriptors. (scikit-learn kNN does not support cosine distance, and
 writing a custom pairwise_match function made search 10x slower)
+
+
+Performance
+-----------
+
+Ridley uses a simple kNN to find matching images; this is quite slow for large 
+numbers of images.
+
+For example, searching a database of 1.2 million ImageNet images takes ~1.2 seconds
+on an Intel Core-i5 @ 3.3 Ghz.
 
 
 Further Work
