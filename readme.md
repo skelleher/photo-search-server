@@ -1,5 +1,7 @@
 Ridley is a small photo search engine that I wrote for fun.
 
+You can play with it online here: http://skelleher-apps.s3-website-us-west-2.amazonaws.com/
+
 Ridley can index photos, and then execute queries against
 the index. By default, the top-5 matching photos are returned.
 
