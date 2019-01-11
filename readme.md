@@ -6,9 +6,9 @@ Ridley can index photos, and then execute queries against the index.
 By default, the top-5 matching photos are returned.
 
 The engine is comprised of three Python processes, which can one on one or multiple servers:
-. image feature extractor (deep neural net)
-. image search (kNN)
-. web front-end
+* image feature extractor (deep neural net)
+* image search (kNN)
+* web front-end
 
 
 ![Search results](screenshots/ridley_photo_search_engine5.jpeg?raw=true)
@@ -27,8 +27,8 @@ I also append the predicted class label as an extra feature. This improves searc
 and quantitatively.
 
 By combining the Resnet features and class label, search results 
-a) usually contain the correct subject and 
-b) are visually similar (size, pose, and color)
+* usually contain the correct subject and 
+* are visually similar (size, pose, and color)
 
 Although the Resnet was trained on Imagenet, using it for the search engine generalizes well to other images.
 For example, indexing and searching the caltech-256 dataset returns relevent results (visually and per class).
@@ -53,8 +53,8 @@ For example, searching a database of 1.2 million ImageNet images takes ~1.2 seco
 on an Intel Core-i5 @ 3.3 Ghz.
 
 The search engine could be scaled up to be much faster and support much larger datasets:
-. the index could be split across multiple servers and searched in parallel
-. locality-sensitive hashing would allow approximate nearest neighbors (searching only a subset of the index)
+* the index could be split across multiple servers and searched in parallel
+* locality-sensitive hashing would allow approximate nearest neighbors (searching only a subset of the index)
 
 
 Further Work
