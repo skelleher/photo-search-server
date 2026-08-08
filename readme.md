@@ -5,7 +5,7 @@ You can play with it online here: http://skelleher-apps.s3-website-us-west-2.ama
 Ridley can index photos, and then execute queries against the index. 
 By default, the top-5 matching photos are returned.
 
-The engine is comprised of three Python processes, which can one on one or multiple servers:
+The engine is comprised of three Python processes, which can run on one or multiple servers:
 * image feature extractor (deep neural net)
 * image search (kNN)
 * web front-end
