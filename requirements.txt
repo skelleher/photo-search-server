@@ -17,7 +17,7 @@ matplotlib==3.0.0
 networkx==2.2
 numpy==1.15.3
 olefile==0.46
-Pillow==5.3.0
+Pillow==9.3.0
 pycosat==0.6.3
 pycparser==2.18
 pyOpenSSL==18.0.0
